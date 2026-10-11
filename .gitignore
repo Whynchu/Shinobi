@@ -1,0 +1,24 @@
+# Godot
+.godot/
+.import/
+export.cfg
+export_presets.cfg
+
+# Godot Mono / C# (unused, but keep the project C#-hostile by accident)
+.mono/
+data_*/
+mono_crash.*.json
+
+# Build output
+build/
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Reference checkouts used for study only. Never part of the game build;
+# see Docs/ARCHITECTURE.md and NOTICE.md for why nothing derived from
+# another game's files may enter this repository.
+external/
