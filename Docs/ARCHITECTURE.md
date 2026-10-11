@@ -134,7 +134,7 @@ as suspicious data rather than as a bug.
 No physics bodies are involved, so the answer is identical whether the game is
 running or the tests are running with nothing on screen.
 
-**Decision 4 — blade sweeps are hand-authored, not baked from animation.**
+**Decision 5 — blade sweeps are hand-authored, not baked from animation.**
 `AttackTable.sweep` is an ordered list of `BladePose` resources: where the hilt
 is and where the tip is, in the character's own space (X is the character's
 left, Y up, Z forward). Two poses describe a straight swing, three or more a
@@ -148,7 +148,29 @@ proportions change, and let a weapon deliberately reach further than it looks -
 a normal action-game tool, and arguably necessary for GDD 5.4's "hitboxes follow
 visual sweeps closely."
 
-This may be revisited once real animation exists. It is a one-field change.
+That rejection was provisional. It is now **reversible, and the reason it is
+reversible is the rig**, which the Blender lane exists to provide. Two things
+were true then and are not now: there is a skeleton, and its proportions are
+measured rather than guessed. A clip can be baked once there is something to
+bake from and something to check it against.
+
+The shape of the revisit, decided now so it is not re-argued:
+
+- Where a move is authored to match its own animation, the sweep is derived
+  from the clip on export and `AttackTable.sweep` becomes a cache rather than
+  the source of truth. That is the one-field change.
+- Where a move deliberately reaches further than it looks - the normal
+  action-game tool above - it stays authored, and the divergence is recorded.
+  The proportions test is what makes "deliberate" a claim that can be checked
+  rather than a word somebody typed.
+- The two mechanisms do not need to agree globally. Both are per-move, and a
+  mixed state is honest: it says "some swings follow their clip, and this one
+  does not, on purpose."
+
+`tools/blender/build_rig.py` and the GDD 11.2 proportions test are what make
+this a plan rather than a wish. They are also why the earlier objection no
+longer bites: "proportions are still moving" is a property of a rig nobody has
+measured, and the rig is now measured.
 
 **Supporting the authoring.** Hand-authored data is only better than baked data
 if it is pleasant to author and hard to get wrong, so:
@@ -200,13 +222,22 @@ src/sim/          Node-free. Runs headless. The whole gameplay simulation.
 src/run/          RunDirector: seeded route graph (GDD 8) - not yet written
 src/telemetry/    event aggregation (GDD 18) - not yet written
 
+assets/           exported, for the engine. Each binary carries a checked
+                  provenance manifest (see the provenance policy below)
+tools/blender/    the Blender lane: rig source, exporter, and its checks
+  shinobi_rig.py       the character, as a function of its proportions
+  build_rig.py         builds, exports .glb, writes the manifest
+  test_proportions.py  GDD 11.2 measured on the *exported* file
+  test_proportions_negative_control.py
+  Setup-BlenderLane.ps1
+
 scripts/          presentation. Reads simulation state, never writes it.
 shaders/          cel shading (GDD 11)
 tests/            headless runner, fixtures, combat suites
 tools/            moveset_report.gd: the balancing sheet, printable and checkable
 ```
 
-### Running the checks
+## The Blender lane
 
 ```
 godot --headless --path . --script res://tests/run_tests.gd
@@ -214,6 +245,29 @@ godot --headless --path . --script res://tools/moveset_report.gd --check
 godot --headless --path . --quit-after 4000 res://scenes/main.tscn --selftest
 godot --path .                                    # play it
 ```
+
+Each lane owns a runner of its own, on the same contract - non-zero on failure,
+and non-zero on *silence*:
+
+```
+godot --headless --path . --script res://tests/run_art_tests.gd        # Gate B
+godot --headless --path . --script res://tests/run_run_tests.gd        # Gate D
+godot --headless --path . --script res://tests/run_scroll_tests.gd     # GDD 6
+godot --headless --path . --script res://tests/run_enemy_tests.gd      # Gate C
+godot --headless --path . --script res://tests/run_provenance_tests.gd  # GDD 17
+```
+
+The Blender lane is separate again, because it is not GDScript:
+
+```
+blender --background --python tools/blender/build_rig.py
+blender --background --python tools/blender/test_proportions.py
+blender --background --python tools/blender/test_proportions_negative_control.py
+```
+
+`moveset_report.gd --check` remains the only checkable sheet, and the
+provenance runner is the only one that hashes binaries - which is why it is the
+one a CI job cannot shortcut by skipping the Blender setup.
 
 The self-test boots the real scene, steps it against scripted input with no
 window, and reports the outcome. It is how the blockout gets checked in CI at
@@ -319,9 +373,10 @@ building the thing you can play before the thing you can assert about.
 
 ### What is still missing
 
-No rig, no animation, no audio, no shader work, no cel shading. The blade is
-placed from data rather than from a clip, which is deliberate for now (Decision
-5) but is the first thing to revisit once a skeleton exists.
+No animation, no audio. Cel shading exists (Gate B); the character rig does not
+follow it yet, and no move is currently driven by a clip. The blade is placed
+from data, which is now a reversible decision with a stated path (Decision 5)
+rather than a state of "once a skeleton exists".
 
 Interact has nothing to interact with. Smoke bombs and caltrops (GDD 6.1's other
 two ninja tools) are not implemented - they need status effects and area logic,
